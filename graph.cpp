@@ -171,6 +171,7 @@ Path::Path(index_t srcNumber, index_t dstNumber,
     this->edges = edges;
     std::sort(this->vertices.begin(), this->vertices.end());
     std::sort(this->edges.begin(), this->edges.end());
+    this->nodes.reserve(vertices.size());
 
     for (index_t i = 0; i < this->vertices.size(); ++i)
         if (i == srcVertexID)
@@ -200,18 +201,36 @@ void Path::findPath()
 
         for (index_t i = lower; i < upper; ++i)
         {
-            index_t vertexID = this->edges[i].getDstVertexID();
-            this->nodes[top].update(vertexID, this->edges, this->nodes);
+            index_t dstVertexID = this->edges[i].getDstVertexID();
+            this->nodes[top].update(dstVertexID, this->edges, this->nodes);
 
-            if (vertexID != this->dstVertexID &&
-                this->visitedVertexIDs.find(vertexID) ==
+            if (dstVertexID != this->dstVertexID &&
+                this->visitedVertexIDs.find(dstVertexID) ==
                     this->visitedVertexIDs.end())
-                this->heapNodePtrs.push_back(&this->nodes[vertexID]);
+                this->heapNodePtrs.push_back(&this->nodes[dstVertexID]);
         }
 
         std::make_heap(this->heapNodePtrs.begin(),
                        this->heapNodePtrs.end(), Node::MinScore());
     }
+}
+
+void Path::reset(index_t srcNumber, index_t dstNumber)
+{
+    index_t srcVertexID = Vertex(srcNumber).find(this->vertices);
+    this->dstVertexID = Vertex(dstNumber).find(this->vertices);
+
+    for (index_t i = 0; i < this->vertices.size(); ++i)
+        if (i == srcVertexID)
+            this->nodes[i] =
+                Node(srcVertexID, this->dstVertexID, 0, vertices);
+        else
+            this->nodes[i] =
+                Node(i, this->dstVertexID, INFINITE_DOUBLE, vertices);
+
+    this->heapNodePtrs.clear();
+    this->heapNodePtrs.push_back(&this->nodes[srcVertexID]);
+    this->visitedVertexIDs.clear();
 }
 
 VectorI Path::getPath() const
@@ -233,4 +252,23 @@ VectorI Path::getPath() const
     std::reverse(path.begin(), path.end());
 
     return path;
+}
+
+double Path::getCosts() const
+{
+    double costs = 0;
+    index_t vertexID = this->dstVertexID,
+            prevVertexID = this->nodes[Node(vertexID).find(this->nodes)]
+                               .getPrevVertexID();
+
+    while (prevVertexID != (index_t)-1)
+    {
+        Edge edge(prevVertexID, vertexID);
+        costs += this->edges[edge.find(this->edges)].getCost();
+        vertexID = prevVertexID;
+        prevVertexID = this->nodes[Node(vertexID).find(this->nodes)]
+                           .getPrevVertexID();
+    }
+
+    return costs;
 }

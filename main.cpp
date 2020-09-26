@@ -116,6 +116,8 @@ int main()
     for (index_t i = 0; i < result.size(); ++i)
         std::cout << "  Node " << result[i] << std::endl;
 
+    std::cout << "Total Costs: " << path.getCosts() << std::endl;
+
     system("pause");
 
     return 0;

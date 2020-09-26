@@ -110,7 +110,9 @@ public:
          const VectorV &, const VectorE &);
 
     void findPath();
+    void reset(index_t, index_t);
     VectorI getPath() const;
+    double getCosts() const;
 };
 
 
