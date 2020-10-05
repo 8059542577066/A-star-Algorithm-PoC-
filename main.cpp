@@ -1,124 +1,126 @@
 #include "graph.h"
+#include "file.h"
 #include <iostream>
-#include <cstdlib>
 
 
 int main()
 {
-    index_t size = 18;
-    VectorV vertices;
+    std::cout << "Welcome to A-star Program!" << std::endl;
+    std::cout << "  Option 0: Exit" << std::endl;
+    std::cout << "  Option 1: Insert Points" << std::endl;
+    std::cout << "  Option 2: Erase Points" << std::endl;
+    std::cout << "  Option 3: Clear Points" << std::endl;
+    std::cout << "  Option 4: Insert Routes" << std::endl;
+    std::cout << "  Option 5: Erase Routes" << std::endl;
+    std::cout << "  Option 6: Clear Routes" << std::endl;
+    std::cout << "  Option 7: Find Shortest Path" << std::endl;
+    std::cout << "  Option 8: Update Weight" << std::endl;
+    std::cout << "  Option 9: Backup" << std::endl;
 
-    for (index_t i = 0; i < size; ++i)
-        vertices.push_back(Vertex(i, 0, 0));
+    unsigned option = 0;
+    Graph graph(0);
+    std::string fileName;
+    std::size_t srcID, dstID;
+    double weight;
 
-    VectorE edges;
+    do
+    {
+        std::cout << std::endl
+                  << "Option> ";
+        std::cin >> option;
 
-    // Row 0
-    edges.push_back(Edge(0, 2, 2, vertices));
-    edges.push_back(Edge(0, 7, 4, vertices));
-    edges.push_back(Edge(0, 14, 1, vertices));
+        switch (option)
+        {
+        case 1:
+            std::cout << "  File Name: ", std::cin >> fileName;
 
-    // Row 1
-    edges.push_back(Edge(1, 2, 9, vertices));
-    edges.push_back(Edge(1, 4, 2, vertices));
-    edges.push_back(Edge(1, 5, 8, vertices));
+            try
+            {
+                insertPoints(fileName, graph);
+            }
+            catch (int e)
+            {
+                if (e == FILE_NOT_FOUND)
+                    std::cout << "ERROR - FILE NOT FOUND" << std::endl;
+            }
 
-    // Row 2
-    edges.push_back(Edge(2, 0, 2, vertices));
-    edges.push_back(Edge(2, 1, 9, vertices));
-    edges.push_back(Edge(2, 3, 8, vertices));
-    edges.push_back(Edge(2, 6, 5, vertices));
+            break;
 
-    // Row 3
-    edges.push_back(Edge(3, 2, 8, vertices));
-    edges.push_back(Edge(3, 6, 4, vertices));
+        case 2:
+            std::cout << "  File Name: ", std::cin >> fileName;
 
-    // Row 4
-    edges.push_back(Edge(4, 1, 2, vertices));
-    edges.push_back(Edge(4, 5, 7, vertices));
-    edges.push_back(Edge(4, 7, 6, vertices));
-    edges.push_back(Edge(4, 8, 8, vertices));
+            try
+            {
+                erasePoints(fileName, graph);
+            }
+            catch (int e)
+            {
+                if (e == FILE_NOT_FOUND)
+                    std::cout << "ERROR - FILE NOT FOUND" << std::endl;
+            }
 
-    // Row 5
-    edges.push_back(Edge(5, 1, 8, vertices));
-    edges.push_back(Edge(5, 4, 7, vertices));
-    edges.push_back(Edge(5, 8, 4, vertices));
-    edges.push_back(Edge(5, 9, 7, vertices));
+            break;
 
-    // Row 6
-    edges.push_back(Edge(6, 2, 5, vertices));
-    edges.push_back(Edge(6, 3, 4, vertices));
-    edges.push_back(Edge(6, 9, 7, vertices));
-    edges.push_back(Edge(6, 10, 1, vertices));
+        case 3:
+            graph.clearPoints();
+            break;
 
-    // Row 7
-    edges.push_back(Edge(7, 0, 4, vertices));
-    edges.push_back(Edge(7, 4, 6, vertices));
-    edges.push_back(Edge(7, 8, 4, vertices));
-    edges.push_back(Edge(7, 11, 8, vertices));
+        case 4:
+            std::cout << "  File Name: ", std::cin >> fileName;
 
-    // Row 8
-    edges.push_back(Edge(8, 4, 8, vertices));
-    edges.push_back(Edge(8, 5, 4, vertices));
-    edges.push_back(Edge(8, 7, 4, vertices));
-    edges.push_back(Edge(8, 11, 6, vertices));
-    edges.push_back(Edge(8, 12, 8, vertices));
+            try
+            {
+                insertRoutes(fileName, graph);
+            }
+            catch (int e)
+            {
+                if (e == FILE_NOT_FOUND)
+                    std::cout << "ERROR - FILE NOT FOUND" << std::endl;
+            }
 
-    // Row 9
-    edges.push_back(Edge(9, 5, 7, vertices));
-    edges.push_back(Edge(9, 6, 7, vertices));
+            break;
 
-    // Row 10
-    edges.push_back(Edge(10, 6, 1, vertices));
-    edges.push_back(Edge(10, 17, 5, vertices));
+        case 5:
+            std::cout << "  File Name: ", std::cin >> fileName;
 
-    // Row 11
-    edges.push_back(Edge(11, 7, 8, vertices));
-    edges.push_back(Edge(11, 8, 6, vertices));
-    edges.push_back(Edge(11, 14, 1, vertices));
+            try
+            {
+                eraseRoutes(fileName, graph);
+            }
+            catch (int e)
+            {
+                if (e == FILE_NOT_FOUND)
+                    std::cout << "ERROR - FILE NOT FOUND" << std::endl;
+            }
 
-    // Row 12
-    edges.push_back(Edge(12, 8, 8, vertices));
+            break;
 
-    // Row 13
-    edges.push_back(Edge(13, 16, 6, vertices));
+        case 6:
+            graph.clearRoutes();
+            break;
 
-    // Row 14
-    edges.push_back(Edge(14, 0, 1, vertices));
-    edges.push_back(Edge(14, 11, 1, vertices));
-    edges.push_back(Edge(14, 15, 5, vertices));
+        case 7:
+            std::cout << "  From: ", std::cin >> srcID;
+            std::cout << "    To: ", std::cin >> dstID;
+            graph.initialize(srcID, dstID);
+            graph.findPath();
+            std::cout << "  File Name: ", std::cin >> fileName;
+            savePath(graph, fileName);
+            break;
 
-    // Row 15
-    edges.push_back(Edge(15, 14, 5, vertices));
-    edges.push_back(Edge(15, 16, 1, vertices));
-    edges.push_back(Edge(15, 17, 1, vertices));
+        case 8:
+            std::cout << "  New Weight: ", std::cin >> weight;
+            graph.updateWeight(weight);
+            break;
 
-    // Row 16
-    edges.push_back(Edge(16, 13, 6, vertices));
-    edges.push_back(Edge(16, 15, 1, vertices));
+        case 9:
+            backup(graph);
+            break;
 
-    // Row 17
-    edges.push_back(Edge(17, 10, 5, vertices));
-    edges.push_back(Edge(17, 15, 1, vertices));
-
-    index_t srcNumber, dstNumber;
-    std::cout << "Enter Starting Node: ";
-    std::cin >> srcNumber;
-    std::cout << "Enter Ending Node: ";
-    std::cin >> dstNumber;
-    std::cout << std::endl
-              << "Shortest Path:" << std::endl;
-
-    Path path(srcNumber, dstNumber, vertices, edges);
-    path.findPath();
-    VectorI result = path.getPath();
-
-    for (index_t i = 0; i < result.size(); ++i)
-        std::cout << "  Node " << result[i] << std::endl;
-
-    std::cout << "Total Costs: " << path.getCosts() << std::endl;
-
-    system("pause");
+        default:
+            break;
+        }
+    } while (option);
 
     return 0;
 }

@@ -1,274 +1,442 @@
 #include "graph.h"
-#include <limits>
 #include <cmath>
+#include <limits>
 #include <algorithm>
 
 
-typedef std::pair<VectorE::iterator, VectorE::iterator> range_t;
-
-const double WEIGHT = 6371;
-const double INFINITE_DOUBLE = std::numeric_limits<double>::infinity();
-
-
-Vertex::Vertex(index_t number)
+Point::Point()
 {
-    this->number = number;
 }
 
-Vertex::Vertex(index_t number, double phi, double theta)
+Point::Point(const Point &other)
 {
-    this->number = number;
+    this->unitX = other.unitX;
+    this->unitY = other.unitY;
+    this->unitZ = other.unitZ;
+}
+
+Point::Point(double phi, double theta)
+{
     this->unitX = std::sin(phi) * std::cos(theta);
     this->unitY = std::sin(phi) * std::sin(theta);
     this->unitZ = std::cos(phi);
 }
 
-bool Vertex::operator<(const Vertex &other) const
-{
-    return this->number < other.number;
-}
-
-double Vertex::operator*(const Vertex &other) const
+double Point::operator*(const Point &other) const
 {
     return this->unitX * other.unitX +
            this->unitY * other.unitY +
            this->unitZ * other.unitZ;
 }
 
-double Vertex::heuristic(const Vertex &other) const
+double Point::operator^(const Point &other) const
 {
-    return WEIGHT * std::acos(*this * other);
-}
-
-index_t Vertex::getNumber() const
-{
-    return this->number;
-}
-
-index_t Vertex::find(const VectorV &lookup) const
-{
-    return std::lower_bound(lookup.begin(), lookup.end(), *this) -
-           lookup.begin();
+    return std::acos(*this * other);
 }
 
 
-Edge::Edge(index_t srcVertexID)
+Route::Route(std::size_t srcID, std::size_t dstID)
 {
-    this->srcVertexID = srcVertexID;
+    this->srcID = srcID;
+    this->dstID = dstID;
 }
 
-Edge::Edge(index_t srcVertexID, index_t dstVertexID)
+bool Route::operator<(const Route &other) const
 {
-    this->srcVertexID = srcVertexID;
-    this->dstVertexID = dstVertexID;
-}
+    if (this->srcID != other.srcID)
+        return this->srcID < other.srcID;
 
-Edge::Edge(index_t srcNumber, index_t dstNumber, double cost,
-           const VectorV &vertices)
-{
-    this->srcVertexID = Vertex(srcNumber).find(vertices);
-    this->dstVertexID = Vertex(dstNumber).find(vertices);
-    this->cost = cost;
-}
-
-bool Edge::operator<(const Edge &other) const
-{
-    if (this->srcVertexID != other.srcVertexID)
-        return this->srcVertexID < other.srcVertexID;
-
-    if (this->dstVertexID != other.dstVertexID)
-        return this->dstVertexID < other.dstVertexID;
+    if (this->dstID != other.dstID)
+        return this->dstID < other.dstID;
 
     return false;
 }
 
-bool Edge::SrcVertexOnly::operator()(const Edge &e1,
-                                     const Edge &e2) const
+bool Route::OrderByDstID::operator()(const Route &a,
+                                     const Route &b) const
 {
-    return e1.srcVertexID < e2.srcVertexID;
-}
+    if (a.dstID != b.dstID)
+        return a.dstID < b.dstID;
 
-index_t Edge::getDstVertexID() const
-{
-    return this->dstVertexID;
-}
+    if (a.srcID != b.srcID)
+        return a.srcID < b.srcID;
 
-double Edge::getCost() const
-{
-    return this->cost;
-}
-
-index_t Edge::find(const VectorE &lookup) const
-{
-    return std::lower_bound(lookup.begin(), lookup.end(), *this) -
-           lookup.begin();
+    return false;
 }
 
 
-Node::Node(index_t vertexID)
+Node::Node(std::size_t currID)
 {
-    this->vertexID = vertexID;
-}
-
-Node::Node(index_t vertexID, index_t dstVertexID, double costs,
-           const VectorV &vertices)
-{
-    this->vertexID = vertexID;
-    this->prevVertexID = (index_t)-1;
-    this->costs = costs;
-    this->dist = vertices[vertexID].heuristic(vertices[dstVertexID]);
+    this->currID = currID;
+    this->prevID = -1;
+    this->costs = std::numeric_limits<double>::infinity();
 }
 
 bool Node::operator<(const Node &other) const
 {
-    return this->vertexID < other.vertexID;
+    return this->currID < other.currID;
 }
 
-bool Node::MinScore::operator()(const Node *a,
-                                const Node *b) const
+bool Node::MinHeap::operator()(const Node *a,
+                               const Node *b) const
 {
     return a->score > b->score;
 }
 
-index_t Node::getVertexID() const
+
+Points::Points()
 {
-    return this->vertexID;
 }
 
-index_t Node::getPrevVertexID() const
+Point Points::operator[](std::size_t ID) const
 {
-    return this->prevVertexID;
+    return this->points.find(ID)->second;
 }
 
-index_t Node::find(const VectorN &lookup) const
+void Points::insert(std::size_t ID,
+                    double phi, double theta)
 {
-    return std::lower_bound(lookup.begin(), lookup.end(), *this) -
-           lookup.begin();
+    this->points[ID] = Point(phi, theta);
 }
 
-void Node::update(index_t nextVertexID,
-                  const VectorE &edges, VectorN &nodes)
+void Points::erase(std::size_t ID)
 {
-    Edge edge(this->vertexID, nextVertexID);
-    double costs = this->costs + edges[edge.find(edges)].getCost();
+    this->points.erase(ID);
+}
 
-    if (costs < nodes[nextVertexID].costs)
+void Points::clear()
+{
+    this->points.clear();
+}
+
+void Points::copy(std::vector<Node> &nodes) const
+{
+    nodes.reserve(this->points.size());
+    std::map<std::size_t, Point>::const_iterator
+        const_lower = this->points.begin(),
+        const_upper = this->points.end(),
+        const_iter;
+
+    for (const_iter = const_lower;
+         const_iter != const_upper; ++const_iter)
+        nodes.push_back(Node(const_iter->first));
+}
+
+bool Points::find(std::size_t ID) const
+{
+    return this->points.find(ID) != this->points.end();
+}
+
+std::size_t Points::size() const
+{
+    return this->points.size();
+}
+
+
+Routes::Routes()
+{
+}
+
+double Routes::operator[](const Route &route) const
+{
+    return this->routesBySrcID.find(route)->second;
+}
+
+void Routes::insert(std::size_t srcID, std::size_t dstID,
+                    double cost)
+{
+    Route route(srcID, dstID);
+    this->routesBySrcID[route] = cost;
+    this->routesByDstID[route] = cost;
+}
+
+void Routes::erase(std::size_t srcID, std::size_t dstID)
+{
+    Route route(srcID, dstID);
+    this->routesBySrcID.erase(route);
+    this->routesByDstID.erase(route);
+}
+
+void Routes::erase(std::size_t ID)
+{
+    std::map<Route, double>::iterator
+        lowerSrc = this->routesBySrcID.lower_bound(Route(ID, 0)),
+        upperSrc = this->routesBySrcID.upper_bound(Route(ID, -1)),
+        iterSrc = lowerSrc;
+
+    while (iterSrc != upperSrc)
     {
-        nodes[nextVertexID].prevVertexID = this->find(nodes);
-        nodes[nextVertexID].costs = costs;
-        nodes[nextVertexID].score = nodes[nextVertexID].costs +
-                                    nodes[nextVertexID].dist;
+        this->routesByDstID.erase(iterSrc->first);
+        this->routesBySrcID.erase(iterSrc++);
+    }
+
+    std::map<Route, double, Route::OrderByDstID>::iterator
+        lowerDst = this->routesByDstID.lower_bound(Route(0, ID)),
+        upperDst = this->routesByDstID.upper_bound(Route(-1, ID)),
+        iterDst = lowerDst;
+
+    while (iterDst != upperDst)
+    {
+        this->routesBySrcID.erase(iterDst->first);
+        this->routesByDstID.erase(iterDst++);
     }
 }
 
-
-Path::Path(index_t srcNumber, index_t dstNumber,
-           const VectorV &vertices, const VectorE &edges)
+void Routes::clear()
 {
-    index_t srcVertexID = Vertex(srcNumber).find(vertices);
-    this->dstVertexID = Vertex(dstNumber).find(vertices);
-    this->vertices = vertices;
-    this->edges = edges;
-    std::sort(this->vertices.begin(), this->vertices.end());
-    std::sort(this->edges.begin(), this->edges.end());
-    this->nodes.reserve(vertices.size());
-
-    for (index_t i = 0; i < this->vertices.size(); ++i)
-        if (i == srcVertexID)
-            this->nodes.push_back(
-                Node(srcVertexID, this->dstVertexID, 0, vertices));
-        else
-            this->nodes.push_back(
-                Node(i, this->dstVertexID, INFINITE_DOUBLE, vertices));
-
-    this->heapNodePtrs.push_back(&this->nodes[srcVertexID]);
+    this->routesBySrcID.clear();
+    this->routesByDstID.clear();
 }
 
-void Path::findPath()
+void Routes::copyBySrc(std::vector<std::size_t> &dstIDs,
+                       std::size_t srcID) const
 {
-    while (!this->heapNodePtrs.empty())
+    dstIDs.clear();
+    std::map<Route, double>::const_iterator
+        const_lower = this->routesBySrcID.lower_bound(Route(srcID, 0)),
+        const_upper = this->routesBySrcID.upper_bound(Route(srcID, -1)),
+        const_iter;
+
+    for (const_iter = const_lower;
+         const_iter != const_upper; ++const_iter)
+        dstIDs.push_back(const_iter->first.dstID);
+}
+
+std::size_t Routes::size() const
+{
+    return this->routesBySrcID.size();
+}
+
+
+Nodes::Nodes()
+{
+}
+
+Nodes::Nodes(const Points &points,
+             std::size_t srcID, std::size_t dstID)
+{
+    points.copy(this->nodes);
+    this->nodes[this->find(srcID)].costs = 0;
+    Point dstPoint = points[dstID];
+
+    for (std::size_t i = 0; i < this->nodes.size(); ++i)
+        this->nodes[i].dist = points[this->nodes[i].currID] ^ dstPoint;
+}
+
+Node &Nodes::operator[](std::size_t index)
+{
+    return this->nodes[index];
+}
+
+Node Nodes::operator[](std::size_t index) const
+{
+    return this->nodes[index];
+}
+
+void Nodes::clear()
+{
+    this->nodes.clear();
+}
+
+std::size_t Nodes::size() const
+{
+    return this->nodes.size();
+}
+
+std::size_t Nodes::find(std::size_t ID) const
+{
+    return std::lower_bound(this->nodes.begin(),
+                            this->nodes.end(), Node(ID)) -
+           this->nodes.begin();
+}
+
+
+void Graph::update(std::size_t currID, std::size_t nextID)
+{
+    double costs = this->getCosts(currID) +
+                   this->routes[Route(currID, nextID)];
+    Node &nextNode = this->nodes[this->nodes.find(nextID)];
+
+    if (costs < nextNode.costs)
     {
-        index_t top = this->heapNodePtrs.front() - &this->nodes.front();
-        std::pop_heap(this->heapNodePtrs.begin(),
-                      this->heapNodePtrs.end(), Node::MinScore());
-        this->heapNodePtrs.pop_back();
-        this->visitedVertexIDs.insert(top);
-        range_t range = std::equal_range(this->edges.begin(),
-                                         this->edges.end(),
-                                         Edge(top), Edge::SrcVertexOnly());
-        index_t lower = range.first - this->edges.begin(),
-                upper = range.second - this->edges.begin();
+        nextNode.prevID = currID;
+        nextNode.costs = costs;
+        nextNode.score = costs + this->weight * nextNode.dist;
+    }
+}
 
-        for (index_t i = lower; i < upper; ++i)
+bool Graph::isNew(std::size_t ID) const
+{
+    if (ID == this->dstID)
+        return false;
+
+    if (this->discovered.find(ID) != this->discovered.end())
+        return false;
+
+    return true;
+}
+
+std::size_t Graph::getPrevID(std::size_t ID) const
+{
+    return this->nodes[this->nodes.find(ID)].prevID;
+}
+
+double Graph::getCosts(std::size_t ID) const
+{
+    return this->nodes[this->nodes.find(ID)].costs;
+}
+
+Graph::Graph(double weight)
+{
+    this->ready = false;
+    this->done = false;
+    this->weight = weight;
+}
+
+void Graph::updateWeight(double weight)
+{
+    this->weight = weight;
+}
+
+void Graph::insertPoint(std::size_t ID,
+                        double phi, double theta)
+{
+    this->points.insert(ID, phi, theta);
+}
+
+void Graph::erasePoint(std::size_t ID)
+{
+    this->points.erase(ID);
+    this->routes.erase(ID);
+    this->ready = false;
+    this->done = false;
+}
+
+void Graph::clearPoints()
+{
+    this->points.clear();
+    this->routes.clear();
+    this->ready = false;
+    this->done = false;
+}
+
+void Graph::insertRoute(std::size_t srcID, std::size_t dstID,
+                        double cost)
+{
+    if (this->points.find(srcID) && this->points.find(dstID) &&
+        srcID != dstID && cost > 0)
+    {
+        this->routes.insert(srcID, dstID, cost);
+        this->ready = false;
+        this->done = false;
+    }
+}
+
+void Graph::eraseRoute(std::size_t srcID, std::size_t dstID)
+{
+    this->routes.erase(srcID, dstID);
+    this->ready = false;
+    this->done = false;
+}
+
+void Graph::clearRoutes()
+{
+    this->routes.clear();
+    this->ready = false;
+    this->done = false;
+}
+
+void Graph::initialize(std::size_t srcID, std::size_t dstID)
+{
+    if (this->points.find(srcID) && this->points.find(dstID))
+    {
+        this->dstID = dstID;
+        this->nodes = Nodes(this->points, srcID, dstID);
+        this->scoreHeap.clear();
+        this->scoreHeap.push_back(
+            &this->nodes[this->nodes.find(srcID)]);
+        this->discovered.clear();
+        this->ready = true;
+    }
+    else
+    {
+        this->ready = false;
+        this->done = false;
+    }
+}
+
+void Graph::findPath()
+{
+    if (!this->ready)
+        return;
+
+    std::vector<std::size_t> dstIDs;
+
+    while (!this->scoreHeap.empty())
+    {
+        std::size_t currID = this->scoreHeap.front()->currID;
+        std::pop_heap(this->scoreHeap.begin(),
+                      this->scoreHeap.end(), Node::MinHeap());
+        this->scoreHeap.pop_back();
+        this->discovered.insert(currID);
+        this->routes.copyBySrc(dstIDs, currID);
+
+        for (std::size_t i = 0; i < dstIDs.size(); ++i)
         {
-            index_t dstVertexID = this->edges[i].getDstVertexID();
-            this->nodes[top].update(dstVertexID, this->edges, this->nodes);
+            this->update(currID, dstIDs[i]);
 
-            if (dstVertexID != this->dstVertexID &&
-                this->visitedVertexIDs.find(dstVertexID) ==
-                    this->visitedVertexIDs.end())
-                this->heapNodePtrs.push_back(&this->nodes[dstVertexID]);
+            if (this->isNew(dstIDs[i]))
+            {
+                this->scoreHeap.push_back(
+                    &this->nodes[this->nodes.find(dstIDs[i])]);
+                this->discovered.insert(dstIDs[i]);
+            }
         }
 
-        std::make_heap(this->heapNodePtrs.begin(),
-                       this->heapNodePtrs.end(), Node::MinScore());
+        std::make_heap(this->scoreHeap.begin(),
+                       this->scoreHeap.end(), Node::MinHeap());
     }
+
+    this->done = true;
 }
 
-void Path::reset(index_t srcNumber, index_t dstNumber)
+std::size_t Graph::countPoints() const
 {
-    index_t srcVertexID = Vertex(srcNumber).find(this->vertices);
-    this->dstVertexID = Vertex(dstNumber).find(this->vertices);
-
-    for (index_t i = 0; i < this->vertices.size(); ++i)
-        if (i == srcVertexID)
-            this->nodes[i] =
-                Node(srcVertexID, this->dstVertexID, 0, vertices);
-        else
-            this->nodes[i] =
-                Node(i, this->dstVertexID, INFINITE_DOUBLE, vertices);
-
-    this->heapNodePtrs.clear();
-    this->heapNodePtrs.push_back(&this->nodes[srcVertexID]);
-    this->visitedVertexIDs.clear();
+    return this->points.size();
 }
 
-VectorI Path::getPath() const
+std::size_t Graph::countRoutes() const
 {
-    VectorI path;
-    index_t vertexID = this->dstVertexID, prevVertexID;
-    path.push_back(this->vertices[vertexID].getNumber());
-    prevVertexID = this->nodes[Node(vertexID).find(this->nodes)]
-                       .getPrevVertexID();
+    return this->routes.size();
+}
 
-    while (prevVertexID != (index_t)-1)
+std::vector<std::size_t> Graph::getPath() const
+{
+    std::vector<std::size_t> path;
+
+    if (this->done)
     {
-        vertexID = prevVertexID;
-        path.push_back(this->vertices[vertexID].getNumber());
-        prevVertexID = this->nodes[Node(vertexID).find(this->nodes)]
-                           .getPrevVertexID();
-    }
+        path.push_back(dstID);
+        std::size_t currID = this->dstID,
+                    prevID = this->getPrevID(currID);
 
-    std::reverse(path.begin(), path.end());
+        while (prevID != (std::size_t)-1)
+        {
+            currID = prevID;
+            path.push_back(currID);
+            prevID = this->getPrevID(currID);
+        }
+
+        std::reverse(path.begin(), path.end());
+    }
 
     return path;
 }
 
-double Path::getCosts() const
+double Graph::getCosts() const
 {
-    double costs = 0;
-    index_t vertexID = this->dstVertexID,
-            prevVertexID = this->nodes[Node(vertexID).find(this->nodes)]
-                               .getPrevVertexID();
-
-    while (prevVertexID != (index_t)-1)
-    {
-        Edge edge(prevVertexID, vertexID);
-        costs += this->edges[edge.find(this->edges)].getCost();
-        vertexID = prevVertexID;
-        prevVertexID = this->nodes[Node(vertexID).find(this->nodes)]
-                           .getPrevVertexID();
-    }
-
-    return costs;
+    if (this->done)
+        return this->getCosts(this->dstID);
+    else
+        return -1;
 }

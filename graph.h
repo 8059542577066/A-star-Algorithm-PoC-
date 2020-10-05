@@ -1,118 +1,164 @@
 #ifndef GRAPH_H
 #define GRAPH_H
 
+#include <map>
 #include <vector>
 #include <set>
 
 
-class Vertex;
-class Edge;
-class Node;
-
-typedef std::size_t index_t;
-typedef std::vector<Vertex> VectorV;
-typedef std::vector<Edge> VectorE;
-typedef std::vector<Node> VectorN;
-typedef std::vector<Node *> VectorNP;
-typedef std::multiset<index_t> MulSetI;
-typedef std::vector<index_t> VectorI;
-
-
-class Vertex
+struct Point
 {
-private:
-    index_t number;
     double unitX;
     double unitY;
     double unitZ;
 
-public:
-    Vertex(index_t);
-    Vertex(index_t, double, double);
+    Point();
+    Point(const Point &);
+    Point(double, double);
 
-    bool operator<(const Vertex &) const;
-    double operator*(const Vertex &) const;
-
-    double heuristic(const Vertex &) const;
-    index_t getNumber() const;
-    index_t find(const VectorV &) const;
+    double operator*(const Point &) const;
+    double operator^(const Point &) const;
 };
 
 
-class Edge
+struct Route
 {
-private:
-    index_t srcVertexID;
-    index_t dstVertexID;
-    double cost;
+    std::size_t srcID;
+    std::size_t dstID;
 
-public:
-    Edge(index_t);
-    Edge(index_t, index_t);
-    Edge(index_t, index_t, double,
-         const VectorV &);
+    Route(std::size_t, std::size_t);
 
-    bool operator<(const Edge &) const;
-    struct SrcVertexOnly
+    bool operator<(const Route &) const;
+    struct OrderByDstID
     {
-        bool operator()(const Edge &,
-                        const Edge &) const;
+        bool operator()(const Route &,
+                        const Route &) const;
     };
-
-    index_t getDstVertexID() const;
-    double getCost() const;
-    index_t find(const VectorE &) const;
 };
 
 
-class Node
+struct Node
 {
-private:
-    index_t vertexID;
-    index_t prevVertexID;
+    std::size_t currID;
+    std::size_t prevID;
     double costs;
     double dist;
     double score;
 
-public:
-    Node(index_t);
-    Node(index_t, index_t, double,
-         const VectorV &);
+    Node(std::size_t);
 
     bool operator<(const Node &) const;
-    struct MinScore
+    struct MinHeap
     {
         bool operator()(const Node *,
                         const Node *) const;
     };
-
-    index_t getVertexID() const;
-    index_t getPrevVertexID() const;
-    index_t find(const VectorN &) const;
-
-    void update(index_t,
-                const VectorE &, VectorN &);
 };
 
 
-class Path
+class Graph;
+
+class Points
 {
-private:
-    index_t dstVertexID;
-    VectorV vertices;
-    VectorE edges;
-    VectorN nodes;
-    VectorNP heapNodePtrs;
-    MulSetI visitedVertexIDs;
+    std::map<std::size_t, Point> points;
 
 public:
-    Path(index_t, index_t,
-         const VectorV &, const VectorE &);
+    Points();
 
+    Point operator[](std::size_t) const;
+
+    void insert(std::size_t,
+                double, double);
+    void erase(std::size_t);
+    void clear();
+    void copy(std::vector<Node> &) const;
+    bool find(std::size_t) const;
+    std::size_t size() const;
+
+    friend void backup(const Graph &);
+};
+
+
+class Routes
+{
+    std::map<Route, double> routesBySrcID;
+    std::map<Route, double,
+             Route::OrderByDstID>
+        routesByDstID;
+
+public:
+    Routes();
+
+    double operator[](const Route &) const;
+
+    void insert(std::size_t, std::size_t,
+                double);
+    void erase(std::size_t, std::size_t);
+    void erase(std::size_t);
+    void clear();
+    void copyBySrc(std::vector<std::size_t> &,
+                   std::size_t) const;
+    std::size_t size() const;
+
+    friend void backup(const Graph &);
+};
+
+
+class Nodes
+{
+    std::vector<Node> nodes;
+
+public:
+    Nodes();
+    Nodes(const Points &,
+          std::size_t, std::size_t);
+
+    Node &operator[](std::size_t);
+    Node operator[](std::size_t) const;
+
+    void clear();
+    std::size_t size() const;
+    std::size_t find(std::size_t) const;
+};
+
+
+class Graph
+{
+    bool ready;
+    bool done;
+    double weight;
+    std::size_t dstID;
+    Points points;
+    Routes routes;
+    Nodes nodes;
+    std::vector<const Node *> scoreHeap;
+    std::set<std::size_t> discovered;
+
+    void update(std::size_t, std::size_t);
+    bool isNew(std::size_t) const;
+    std::size_t getPrevID(std::size_t) const;
+    double getCosts(std::size_t) const;
+
+public:
+    Graph(double);
+
+    void updateWeight(double);
+    void insertPoint(std::size_t,
+                     double, double);
+    void erasePoint(std::size_t);
+    void clearPoints();
+    void insertRoute(std::size_t, std::size_t,
+                     double);
+    void eraseRoute(std::size_t, std::size_t);
+    void clearRoutes();
+    void initialize(std::size_t, std::size_t);
     void findPath();
-    void reset(index_t, index_t);
-    VectorI getPath() const;
+    std::size_t countPoints() const;
+    std::size_t countRoutes() const;
+    std::vector<std::size_t> getPath() const;
     double getCosts() const;
+
+    friend void backup(const Graph &);
 };
 
 
