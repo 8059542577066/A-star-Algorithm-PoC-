@@ -69,6 +69,7 @@ Node::Node(std::size_t currID)
 {
     this->currID = currID;
     this->prevID = -1;
+    this->found = false;
     this->costs = std::numeric_limits<double>::infinity();
 }
 
@@ -120,6 +121,24 @@ void Points::copy(std::vector<Node> &nodes) const
     for (const_iter = const_lower;
          const_iter != const_upper; ++const_iter)
         nodes.push_back(Node(const_iter->first));
+}
+
+void Points::copy(std::vector<std::size_t> &IDs,
+                  std::vector<Point> &points) const
+{
+    IDs.reserve(this->points.size());
+    points.reserve(this->points.size());
+    std::map<std::size_t, Point>::const_iterator
+        const_lower = this->points.begin(),
+        const_upper = this->points.end(),
+        const_iter;
+
+    for (const_iter = const_lower;
+         const_iter != const_upper; ++const_iter)
+    {
+        IDs.push_back(const_iter->first);
+        points.push_back(const_iter->second);
+    }
 }
 
 bool Points::find(std::size_t ID) const
@@ -188,8 +207,8 @@ void Routes::clear()
     this->routesByDstID.clear();
 }
 
-void Routes::copyBySrc(std::vector<std::size_t> &dstIDs,
-                       std::size_t srcID) const
+void Routes::copy(std::vector<std::size_t> &dstIDs,
+                  std::size_t srcID) const
 {
     dstIDs.clear();
     std::map<Route, double>::const_iterator
@@ -200,6 +219,24 @@ void Routes::copyBySrc(std::vector<std::size_t> &dstIDs,
     for (const_iter = const_lower;
          const_iter != const_upper; ++const_iter)
         dstIDs.push_back(const_iter->first.dstID);
+}
+
+void Routes::copy(std::vector<Route> &routes,
+                  std::vector<double> &costs) const
+{
+    routes.reserve(this->routesBySrcID.size());
+    costs.reserve(this->routesBySrcID.size());
+    std::map<Route, double>::const_iterator
+        const_lower = this->routesBySrcID.begin(),
+        const_upper = this->routesBySrcID.end(),
+        const_iter;
+
+    for (const_iter = const_lower;
+         const_iter != const_upper; ++const_iter)
+    {
+        routes.push_back(const_iter->first);
+        costs.push_back(const_iter->second);
+    }
 }
 
 std::size_t Routes::size() const
@@ -220,7 +257,7 @@ Nodes::Nodes(const Points &points,
     Point dstPoint = points[dstID];
 
     for (std::size_t i = 0; i < this->nodes.size(); ++i)
-        this->nodes[i].dist = points[this->nodes[i].currID] ^ dstPoint;
+        this->nodes[i].angle = points[this->nodes[i].currID] ^ dstPoint;
 }
 
 Node &Nodes::operator[](std::size_t index)
@@ -251,6 +288,11 @@ std::size_t Nodes::find(std::size_t ID) const
 }
 
 
+void Graph::markID(std::size_t ID)
+{
+    this->nodes[this->nodes.find(ID)].found = true;
+}
+
 void Graph::update(std::size_t currID, std::size_t nextID)
 {
     double costs = this->getCosts(currID) +
@@ -261,8 +303,23 @@ void Graph::update(std::size_t currID, std::size_t nextID)
     {
         nextNode.prevID = currID;
         nextNode.costs = costs;
-        nextNode.score = costs + this->weight * nextNode.dist;
+        nextNode.score = costs + this->weight * nextNode.angle;
     }
+}
+
+bool Graph::check(std::size_t srcID, std::size_t dstID) const
+{
+    if (srcID == dstID)
+        throw INVALID_ROUTE_1;
+
+    Point srcPoint = this->points[srcID],
+          dstPoint = this->points[dstID];
+
+    if (this->routes[Route(srcID, dstID)] <
+        this->weight * (srcPoint ^ dstPoint))
+        throw INVALID_ROUTE_2;
+
+    return true;
 }
 
 bool Graph::isNew(std::size_t ID) const
@@ -270,7 +327,7 @@ bool Graph::isNew(std::size_t ID) const
     if (ID == this->dstID)
         return false;
 
-    if (this->discovered.find(ID) != this->discovered.end())
+    if (this->nodes[this->nodes.find(ID)].found)
         return false;
 
     return true;
@@ -286,6 +343,11 @@ double Graph::getCosts(std::size_t ID) const
     return this->nodes[this->nodes.find(ID)].costs;
 }
 
+double Graph::getScore(std::size_t ID) const
+{
+    return this->nodes[this->nodes.find(ID)].score;
+}
+
 Graph::Graph(double weight)
 {
     this->ready = false;
@@ -295,6 +357,17 @@ Graph::Graph(double weight)
 
 void Graph::updateWeight(double weight)
 {
+    if (weight < 0)
+        throw NEGATIVE_WEIGHT;
+
+    if (weight > this->weight)
+    {
+        this->weight = weight;
+        this->routes.clear();
+
+        throw INCREASED_WEIGHT;
+    }
+
     this->weight = weight;
 }
 
@@ -324,7 +397,7 @@ void Graph::insertRoute(std::size_t srcID, std::size_t dstID,
                         double cost)
 {
     if (this->points.find(srcID) && this->points.find(dstID) &&
-        srcID != dstID && cost > 0)
+        this->check(srcID, dstID))
     {
         this->routes.insert(srcID, dstID, cost);
         this->ready = false;
@@ -346,6 +419,15 @@ void Graph::clearRoutes()
     this->done = false;
 }
 
+void Graph::copy(std::vector<std::size_t> &IDs,
+                 std::vector<Point> &points,
+                 std::vector<Route> &routes,
+                 std::vector<double> &costs) const
+{
+    this->points.copy(IDs, points);
+    this->routes.copy(routes, costs);
+}
+
 void Graph::initialize(std::size_t srcID, std::size_t dstID)
 {
     if (this->points.find(srcID) && this->points.find(dstID))
@@ -355,7 +437,6 @@ void Graph::initialize(std::size_t srcID, std::size_t dstID)
         this->scoreHeap.clear();
         this->scoreHeap.push_back(
             &this->nodes[this->nodes.find(srcID)]);
-        this->discovered.clear();
         this->ready = true;
     }
     else
@@ -378,8 +459,12 @@ void Graph::findPath()
         std::pop_heap(this->scoreHeap.begin(),
                       this->scoreHeap.end(), Node::MinHeap());
         this->scoreHeap.pop_back();
-        this->discovered.insert(currID);
-        this->routes.copyBySrc(dstIDs, currID);
+
+        if (this->getScore(currID) >= this->getCosts(this->dstID))
+            break;
+
+        this->markID(currID);
+        this->routes.copy(dstIDs, currID);
 
         for (std::size_t i = 0; i < dstIDs.size(); ++i)
         {
@@ -389,7 +474,7 @@ void Graph::findPath()
             {
                 this->scoreHeap.push_back(
                     &this->nodes[this->nodes.find(dstIDs[i])]);
-                this->discovered.insert(dstIDs[i]);
+                this->markID(dstIDs[i]);
             }
         }
 

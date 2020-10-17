@@ -110,7 +110,20 @@ int main()
 
         case 8:
             std::cout << "  New Weight: ", std::cin >> weight;
-            graph.updateWeight(weight);
+
+            try
+            {
+                graph.updateWeight(weight);
+            }
+            catch (int e)
+            {
+                if (e == NEGATIVE_WEIGHT)
+                    std::cout << "ERROR - NEGATIVE WEIGHT" << std::endl;
+                else if (e == INCREASED_WEIGHT)
+                    std::cout << " *Increased weight cleared routes"
+                              << std::endl;
+            }
+
             break;
 
         case 9:

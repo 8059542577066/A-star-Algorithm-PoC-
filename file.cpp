@@ -60,6 +60,7 @@ void insertRoutes(const std::string &fileName,
     if (fin.fail())
         throw FILE_NOT_FOUND;
 
+    std::ofstream ferr("errors.txt");
     std::string strSrcID, strDstID, strCost;
     std::stringstream ss;
     std::size_t srcID, dstID;
@@ -72,10 +73,24 @@ void insertRoutes(const std::string &fileName,
         ss << strSrcID, ss >> srcID, ss.str(""), ss.clear();
         ss << strDstID, ss >> dstID, ss.str(""), ss.clear();
         ss << strCost, ss >> cost, ss.str(""), ss.clear();
-        graph.insertRoute(srcID, dstID, cost);
+
+        try
+        {
+            graph.insertRoute(srcID, dstID, cost);
+        }
+        catch (int e)
+        {
+            if (e == INVALID_ROUTE_1)
+                ferr << "Src & Dst should be different: ("
+                     << srcID << ")" << std::endl;
+            else if (e == INVALID_ROUTE_2)
+                ferr << "Route cost can't be less than distance: ("
+                     << srcID << "," << dstID << ")" << std::endl;
+        }
     }
 
     fin.close();
+    ferr.close();
 }
 
 void eraseRoutes(const std::string &fileName,
@@ -103,24 +118,25 @@ void eraseRoutes(const std::string &fileName,
 
 void backup(const Graph &graph)
 {
+    std::vector<std::size_t> IDs;
+    std::vector<Point> points;
+    std::vector<Route> routes;
+    std::vector<double> costs;
+    graph.copy(IDs, points, routes, costs);
+
     {
         std::stringstream ss;
         ss << "points(" << graph.countPoints() << ").txt";
         std::string fileName;
         ss >> fileName;
         std::ofstream fout(fileName.c_str());
-        std::map<std::size_t, Point>::const_iterator
-            const_lower = graph.points.points.begin(),
-            const_upper = graph.points.points.end(),
-            const_iter;
 
-        for (const_iter = const_lower;
-             const_iter != const_upper; ++const_iter)
+        for (std::size_t i = 0; i < IDs.size(); ++i)
         {
-            fout << const_iter->first << ",";
-            fout << std::acos(const_iter->second.unitZ) << ",";
-            fout << std::atan2(const_iter->second.unitY,
-                               const_iter->second.unitX)
+            fout << IDs[i] << ",";
+            fout << std::acos(points[i].unitZ) << ",";
+            fout << std::atan2(points[i].unitY,
+                               points[i].unitX)
                  << std::endl;
         }
 
@@ -133,17 +149,12 @@ void backup(const Graph &graph)
         std::string fileName;
         ss >> fileName;
         std::ofstream fout(fileName.c_str());
-        std::map<Route, double>::const_iterator
-            const_lower = graph.routes.routesBySrcID.begin(),
-            const_upper = graph.routes.routesBySrcID.end(),
-            const_iter;
 
-        for (const_iter = const_lower;
-             const_iter != const_upper; ++const_iter)
+        for (std::size_t i = 0; i < routes.size(); ++i)
         {
-            fout << const_iter->first.srcID << ",";
-            fout << const_iter->first.dstID << ",";
-            fout << const_iter->second << std::endl;
+            fout << routes[i].srcID << ",";
+            fout << routes[i].dstID << ",";
+            fout << costs[i] << std::endl;
         }
 
         fout.close();

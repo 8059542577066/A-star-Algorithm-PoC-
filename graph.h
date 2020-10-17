@@ -3,7 +3,23 @@
 
 #include <map>
 #include <vector>
-#include <set>
+
+
+#ifndef INVALID_ROUTE_1
+#define INVALID_ROUTE_1 11
+#endif
+
+#ifndef INVALID_ROUTE_2
+#define INVALID_ROUTE_2 12
+#endif
+
+#ifndef NEGATIVE_WEIGHT
+#define NEGATIVE_WEIGHT 21
+#endif
+
+#ifndef INCREASED_WEIGHT
+#define INCREASED_WEIGHT 22
+#endif
 
 
 struct Point
@@ -41,8 +57,9 @@ struct Node
 {
     std::size_t currID;
     std::size_t prevID;
+    bool found;
     double costs;
-    double dist;
+    double angle;
     double score;
 
     Node(std::size_t);
@@ -55,8 +72,6 @@ struct Node
     };
 };
 
-
-class Graph;
 
 class Points
 {
@@ -72,10 +87,10 @@ public:
     void erase(std::size_t);
     void clear();
     void copy(std::vector<Node> &) const;
+    void copy(std::vector<std::size_t> &,
+              std::vector<Point> &) const;
     bool find(std::size_t) const;
     std::size_t size() const;
-
-    friend void backup(const Graph &);
 };
 
 
@@ -96,11 +111,11 @@ public:
     void erase(std::size_t, std::size_t);
     void erase(std::size_t);
     void clear();
-    void copyBySrc(std::vector<std::size_t> &,
-                   std::size_t) const;
+    void copy(std::vector<std::size_t> &,
+              std::size_t) const;
+    void copy(std::vector<Route> &,
+              std::vector<double> &) const;
     std::size_t size() const;
-
-    friend void backup(const Graph &);
 };
 
 
@@ -132,12 +147,14 @@ class Graph
     Routes routes;
     Nodes nodes;
     std::vector<const Node *> scoreHeap;
-    std::set<std::size_t> discovered;
 
+    void markID(std::size_t);
     void update(std::size_t, std::size_t);
+    bool check(std::size_t, std::size_t) const;
     bool isNew(std::size_t) const;
     std::size_t getPrevID(std::size_t) const;
     double getCosts(std::size_t) const;
+    double getScore(std::size_t) const;
 
 public:
     Graph(double);
@@ -151,14 +168,16 @@ public:
                      double);
     void eraseRoute(std::size_t, std::size_t);
     void clearRoutes();
+    void copy(std::vector<std::size_t> &,
+              std::vector<Point> &,
+              std::vector<Route> &,
+              std::vector<double> &) const;
     void initialize(std::size_t, std::size_t);
     void findPath();
     std::size_t countPoints() const;
     std::size_t countRoutes() const;
     std::vector<std::size_t> getPath() const;
     double getCosts() const;
-
-    friend void backup(const Graph &);
 };
 
 
